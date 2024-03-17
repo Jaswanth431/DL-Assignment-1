@@ -1,0 +1,45 @@
+{
+    "os": "Windows-11-10.0.22631-SP0",
+    "python": "3.12.2",
+    "heartbeatAt": "2024-03-17T14:09:36.963250",
+    "startedAt": "2024-03-17T14:09:34.620304",
+    "docker": null,
+    "cuda": null,
+    "args": [],
+    "state": "running",
+    "program": "C:\\Users\\jaswa\\Desktop\\Coding\\DL\\DL-Assignment-1\\train.py",
+    "codePathLocal": "train.py",
+    "codePath": "train.py",
+    "git": {
+        "remote": "https://github.com/Jaswanth431/DL-Assignment-1.git",
+        "commit": "2d6b8692943b411f4b5bd40222289a52be15a0d1"
+    },
+    "email": "jaswanthjadda@gmail.com",
+    "root": "C:/Users/jaswa/Desktop/Coding/DL/DL-Assignment-1",
+    "host": "Jaswanth",
+    "username": "jaswa",
+    "executable": "C:\\Users\\jaswa\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+    "cpu_count": 12,
+    "cpu_count_logical": 16,
+    "cpu_freq": {
+        "current": 2500.0,
+        "min": 0.0,
+        "max": 2500.0
+    },
+    "cpu_freq_per_core": [
+        {
+            "current": 2500.0,
+            "min": 0.0,
+            "max": 2500.0
+        }
+    ],
+    "disk": {
+        "/": {
+            "total": 475.49598693847656,
+            "used": 428.783145904541
+        }
+    },
+    "memory": {
+        "total": 15.629669189453125
+    }
+}

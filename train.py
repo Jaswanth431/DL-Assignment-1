@@ -5,6 +5,8 @@ import pandas as pd
 import numpy as np
 import wandb
 import math
+import matplotlib.pyplot as plt
+import seaborn as sns
 import argparse
 
 
@@ -16,7 +18,7 @@ import argparse
 #Creating neural network
 class NeuralNetwork:
     def __init__(self, input_layer_neurons, output_layer_neurons, config):
-        #initializing values
+        #initializing values for the neural network
         self.hidden_layers = config["hidden_layers"]
         self.hidden_layer_neurons = config["hl_size"]
         self.input_layer_neurons = input_layer_neurons
@@ -26,10 +28,11 @@ class NeuralNetwork:
         self.config = config
 
         #input weight and bias initilization
+        # contains weights and biases of all layers
         self.w = []
         self.b = []
 
-        #weights and bias initialization for hidden layers
+        #weight and biases initalization randomly
         if(self.config["initialization"] == "random"):
             for i in range(0, self.total_layers):
                 if i == 0:
@@ -44,6 +47,7 @@ class NeuralNetwork:
                 self.w.append(temp1*0.01)
                 self.b.append(temp2*0.01)
 
+        #weight and biases initalization using Xavier method
         elif(self.config["initialization"] == "xavier"):
             for i in range(0, self.total_layers):
                 if i == 0:
@@ -58,7 +62,7 @@ class NeuralNetwork:
                 self.w.append(temp1)
                 self.b.append(temp2)
 
-    #forward prop
+    #forward prop method, takes flattned image and returns activation and preactivation vectors for output layer
     def forward_propogate(self, input):
         h = [None] * self.total_layers
         a = [None] * self.total_layers
@@ -77,7 +81,7 @@ class NeuralNetwork:
             # print(a[i].shape)
         return h, a
 
-    #back prop
+    #back propagation return the gradients for weights and biases of each layer
     def back_propagation(self, h, a, actual_class, input_pixels):
        d_h = [None] * self.total_layers
        d_a =  [None] * self.total_layers
@@ -85,7 +89,8 @@ class NeuralNetwork:
        d_b =  [None] * self.total_layers
        y_original = np.zeros((self.output_layer_neurons, 1))
        y_original[actual_class] = 1
-    
+
+      #  cheking the loss fucntion and finding derivative acccordingly
        if(self.config["loss"] == "cross_entropy"):
           d_a[self.total_layers-1] = -(y_original - h[self.total_layers-1])
        elif(self.config["loss"] == "mean_squared_error"):
@@ -100,6 +105,8 @@ class NeuralNetwork:
         if(i-1>=0):
           d_h[i-1]=np.matmul(self.w[i].T,d_a[i])
           d_a[i-1] = d_h[i-1] * self.activation_derivative(self.config["activation"],a[i-1])
+
+        # returns weights and bias gradients
        return d_w, d_b
     
     #momentum gd
@@ -112,6 +119,7 @@ class NeuralNetwork:
       batch_size = self.config["batch_size"]
       weight_decay = self.config["weight_decay"]
       for p in range(0, self.config["epochs"]):
+        # Batch size implementation logic, taking each batch once and updating the w and b 
         for q in range(0,len(x_train_data_all), batch_size):
             x_train_data = x_train_data_all[q:q+batch_size]
             y_train_data = y_train_data_all[q:q+batch_size]
@@ -131,6 +139,7 @@ class NeuralNetwork:
                     temp_b[k] = beta * previous_b[k] + self.config["learning_rate"]*d_b[k]
                     self.b[k] -= temp_b[k]
                     previous_b[k] = temp_b[k]
+        #loss calculation and logging to wandb
         if((self.config["epochs"] == 10 and p%2==1) or self.config["epochs"] == 5):
             self.calculate_loss(x_train_data_all, y_train_data_all, x_validation_data, y_validation_data, p)
 
@@ -157,6 +166,8 @@ class NeuralNetwork:
         if((self.config["epochs"] == 10 and p%2==1) or self.config["epochs"] == 5):
             self.calculate_loss(x_train_data_all, y_train_data_all, x_validation_data, y_validation_data, p)
     
+
+    #nestrov gradient descent
     def nestrov_gradient_descent(self, x_train_data_all, y_train_data_all, x_validation_data, y_validation_data):
       previous_w = [np.zeros_like(weight) for weight in self.w]
       previous_b = [np.zeros_like(bias) for bias in self.b]
@@ -189,6 +200,7 @@ class NeuralNetwork:
                     self.b[k] -= self.config["learning_rate"]*d_b[k]
         if((self.config["epochs"] == 10 and p%2==1) or self.config["epochs"] == 5):
             self.calculate_loss(x_train_data_all, y_train_data_all, x_validation_data, y_validation_data, p)
+
 
     #rmpprop gradient descent
     def rmsprop_gradient_descent(self, x_train_data_all, y_train_data_all, x_validation_data, y_validation_data):
@@ -332,6 +344,8 @@ class NeuralNetwork:
       validation_loss = 0
       validation_count = 0
       epsilon = 1e-10
+
+      # calculating train data loss
       for i in range(len(x_train_data)):
         h,a = self.forward_propogate(x_train_data[i])
         output_class = np.argmax(h[self.total_layers-1])
@@ -346,7 +360,7 @@ class NeuralNetwork:
           e_l[actual_class] = 1
           train_loss+=np.sum((h[self.total_layers -1] - e_l)**2)
         
-
+      # calculating validation data loss
       for i in range(len(x_validation_data)):
         h,a = self.forward_propogate(x_validation_data[i])
         output_class = np.argmax(h[self.total_layers-1])
@@ -367,6 +381,26 @@ class NeuralNetwork:
       print("Epoch: ", epoch,"train acc:",train_accuracy, "train_loss:", train_loss,"validation acc:", validation_accuracy, "validation loss:",validation_loss)
       if((self.config["epochs"] == 10 and epoch%2==1) or self.config["epochs"] == 5):
         wandb.log({"train_accuracy":train_accuracy, "train_loss":train_loss, "val_accuracy":validation_accuracy, "val_loss":validation_loss, "epoch":epoch})
+
+    def plot_confusion_matrix(self,x_test_data, y_test_data):
+      predicted_y = []
+      for i in range(len(x_test_data)):
+        h,a = self.forward_propogate(x_test_data[i])
+        output_class = np.argmax(h[self.total_layers-1])
+        predicted_y.append(output_class)
+      confusion_matrix = np.zeros((10,10))
+      for i in range(len(y_test_data)):
+        confusion_matrix[y_test_data[i]][predicted_y[i]]+=1
+      # print(confusion_matrix)
+      classes = ['Ankle boot', 'T-shirt/top', 'Dress', 'Pullover', 'Sneaker', 'Sandal', 'Trouser', 'Shirt', 'Coat', 'Bag']
+      plt.figure(figsize=(10, 8))
+      sns.heatmap(confusion_matrix, annot=True, cmap=plt.cm.Blues, fmt='.2f', xticklabels=classes, yticklabels=classes)
+      plt.title("Confusion matrix")
+      plt.xlabel('Predicted class')
+      plt.ylabel('True class')
+      plt.savefig('Confusing matrix.png') 
+      wandb.log({"Confusing matrix": wandb.Image('Confusing matrix.png')})
+      plt.show()
 
     def update_parameters(self,d_w,d_b, eta):
       for i in range(0, self.total_layers):
@@ -417,24 +451,24 @@ class NeuralNetwork:
 
 def main():
     parser = argparse.ArgumentParser(description="Description of your script")
-    parser.add_argument("-wp", "--wandb_project", default="DL proj", help="Project name used to track experiments in Weights & Biases dashboard")
+    parser.add_argument("-wp", "--wandb_project", default="myproject", help="Project name used to track experiments in Weights & Biases dashboard")
     parser.add_argument("-we", "--wandb_entity", default="myname", help="Wandb Entity used to track experiments in the Weights & Biases dashboard.")
     parser.add_argument("-d", "--dataset", default="fashion_mnist", choices=["mnist", "fashion_mnist"], help="Dataset to be used")
-    parser.add_argument("-e", "--epochs", type=int, default=5, help="Number of epochs to train neural network.")
-    parser.add_argument("-b", "--batch_size", type=int, default=16, help="Batch size used to train neural network.")
+    parser.add_argument("-e", "--epochs", type=int, default=10, help="Number of epochs to train neural network.")
+    parser.add_argument("-b", "--batch_size", type=int, default=32, help="Batch size used to train neural network.")
     parser.add_argument("-l", "--loss", default="cross_entropy", choices=["mean_squared_error", "cross_entropy"], help="Loss function")
-    parser.add_argument("-o", "--optimizer", default="sgd", choices=["sgd", "momentum", "nestrov", "rmsprop", "adam", "nadam"], help="Optimizer")
+    parser.add_argument("-o", "--optimizer", default="adam", choices=["sgd", "momentum", "nestrov", "rmsprop", "adam", "nadam"], help="Optimizer")
     parser.add_argument("-lr", "--learning_rate", type=float, default=0.0001, help="Learning rate used to optimize model parameters")
     parser.add_argument("-m", "--momentum", type=float, default=0.9, help="Momentum used by momentum and nag optimizers.")
     parser.add_argument("-beta", "--beta", type=float, default=0.5, help="Beta used by rmsprop optimizer")
     parser.add_argument("-beta1", "--beta1", type=float, default=0.9, help="Beta1 used by adam and nadam optimizers.")
     parser.add_argument("-beta2", "--beta2", type=float, default=0.999, help="Beta2 used by adam and nadam optimizers.")
     parser.add_argument("-eps", "--epsilon", type=float, default=0.000001, help="Epsilon used by optimizers.")
-    parser.add_argument("-w_d", "--weight_decay", type=float, default=0.0, help="Weight decay used by optimizers.")
-    parser.add_argument("-w_i", "--weight_init", default="random", choices=["random", "xavier"], help="Weight initialization")
+    parser.add_argument("-w_d", "--weight_decay", type=float, default=0, help="Weight decay used by optimizers.")
+    parser.add_argument("-w_i", "--weight_init", default="xavier", choices=["random", "xavier"], help="Weight initialization")
     parser.add_argument("-nhl", "--num_layers", type=int, default=3, help="Number of hidden layers used in feedforward neural network.")
-    parser.add_argument("-sz", "--hidden_size", type=int, default=16, help="Number of hidden neurons in a feedforward layer.")
-    parser.add_argument("-a", "--activation", default="sigmoid", choices=["identity", "sigmoid", "tanh", "relu"], help="Activation function")
+    parser.add_argument("-sz", "--hidden_size", type=int, default=128, help="Number of hidden neurons in a feedforward layer.")
+    parser.add_argument("-a", "--activation", default="relu", choices=["identity", "sigmoid", "tanh", "relu"], help="Activation function")
     args = parser.parse_args()
 
     
@@ -461,7 +495,8 @@ def main():
 
     print(config)
     wandb.login()
-    run = wandb.init(project="DL assignment 1", name = f"{config['optimizer']}_hl_{config['hidden_layers']}_hlsize_{config['hl_size']}_bs_{config['batch_size']}_ac_{config['activation']}_init_{config['initialization']}", config=config)
+    loss_type = "ce" if config["loss"] == "cross_entropy" else "mse"
+    run = wandb.init(project=config["wandb_project"], name = f"{config['optimizer']}_hl_{config['hidden_layers']}_hlsize_{config['hl_size']}_bs_{config['batch_size']}_ac_{config['activation']}_init_{config['initialization']}_loss_{loss_type}", config=config)
 
     if(config["dataset"] == "fashion_mnist"):
         [(x_total_train_data, y_total_train_data), (x_test_data, y_test_data)] = fashion_mnist.load_data()
